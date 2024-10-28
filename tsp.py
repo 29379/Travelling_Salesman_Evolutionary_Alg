@@ -453,17 +453,12 @@ def main():
     names = os.listdir("data/datasets")
     names = [name.replace(".tsp", "") for name in names]
 
-    #   OX crossover, swap mutation, tournament selection, random initialization    |   base case
-    for name in names:
-        name = 'bayg29'
-        for bundle in parameter_bundles:
-            POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS = bundle.values()
-            run(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, mode=RUN_MODE.BASE_CASE)
-
-    #   PMX crossover, swap mutation, tournament selection, random initialization
-    #   OX crossover, inverse mutation, tournament selection, random initialization
-    #   OX crossover, swap mutation, roulette wheel selection, random initialization
-    #   OX crossover, swap mutation, tournament selection, greedy initialization
+    for run_mode in RUN_MODE:
+        for name in names:
+            name = 'bayg29'
+            for bundle in parameter_bundles:
+                POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS = bundle.values()
+                run(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, run_mode)
         
     sort_csv_file("results.csv")
 
