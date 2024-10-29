@@ -5,59 +5,7 @@ import tsplib95
 import os
 import csv
 import time
-
-
-#   TODO:
-#   - mutation: Implement INVERSE mutation
-#   - selection: Implement roulette wheel 
-#   - crossover: Implement partially matched crossover
-#   - solutions: Implement 2 non-evolutionary algorithms
-
-
-parameter_bundles = [
-    {
-        "POPULATION_SIZE": 500,
-        "TOURNAMENT_SIZE": 2,
-        "MUTATION_RATE": 0.05,
-        "NUMBER_OF_GENERATIONS": 1000
-    },
-    {
-        "POPULATION_SIZE": 1000,
-        "TOURNAMENT_SIZE": 2,
-        "MUTATION_RATE": 0.05,
-        "NUMBER_OF_GENERATIONS": 1000
-    },
-    {
-        "POPULATION_SIZE": 2000,
-        "TOURNAMENT_SIZE": 2,
-        "MUTATION_RATE": 0.05,
-        "NUMBER_OF_GENERATIONS": 1000
-    }, 
-    # {
-    #     "POPULATION_SIZE": 1000,
-    #     "TOURNAMENT_SIZE": 2,
-    #     "MUTATION_RATE": 0.01,
-    #     "NUMBER_OF_GENERATIONS": 1000
-    # },
-    # {
-    #     "POPULATION_SIZE": 1000,
-    #     "TOURNAMENT_SIZE": 2,
-    #     "MUTATION_RATE": 0.1,
-    #     "NUMBER_OF_GENERATIONS": 1000
-    # },
-    {
-        "POPULATION_SIZE": 1000,
-        "TOURNAMENT_SIZE": 2,
-        "MUTATION_RATE": 0.05,
-        "NUMBER_OF_GENERATIONS": 500
-    },
-    {
-        "POPULATION_SIZE": 1000,
-        "TOURNAMENT_SIZE": 2,
-        "MUTATION_RATE": 0.05,
-        "NUMBER_OF_GENERATIONS": 2000
-    },
-]
+from parameter_bundles import basic_experiment_parameters, population_size_experiment_parameters, mutation_rate_experiment_parameters
 
 #   ----------------------------------------------------------------------------------------------------------------------------------------
 #   PROBLEM SETUP
@@ -196,30 +144,63 @@ def selection_tournament(population, distance_matrix, TOURNAMENT_SIZE):
     return tournament[0]
 
 
-def selection_tournament_ELITISM(population, distance_matrix, TOURNAMENT_SIZE):
-    elite_size = max(1, int(0.05 * len(population)))  # 5% of the population
-    elite = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))[:elite_size]
+# def selection_tournament_ELITISM(population, distance_matrix, TOURNAMENT_SIZE):
+#     elite_size = max(1, int(0.05 * len(population)))  # 5% of the population
+#     elite = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))[:elite_size]
     
-    tournament = random.sample(population, TOURNAMENT_SIZE)
-    tournament.sort(key=lambda x: calculate_fitness(x, distance_matrix))
+#     tournament = random.sample(population, TOURNAMENT_SIZE)
+#     tournament.sort(key=lambda x: calculate_fitness(x, distance_matrix))
     
-    return elite + tournament[:TOURNAMENT_SIZE - elite_size]
+#     return elite + tournament[:TOURNAMENT_SIZE - elite_size]
 
 
-def selection_roulette_wheel(population, distance_matrix):
-    elite_size = max(1, int(0.05 * len(population)))  # 5% of the population
-    elite = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))[:elite_size]
+# def selection_roulette_wheel(population, distance_matrix):
+#     elite_size = max(1, int(0.05 * len(population)))  # 5% of the population
+#     elite = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))[:elite_size]
     
+#     fitness_values = [1 / calculate_fitness(tour, distance_matrix) for tour in population]
+#     total_fitness = sum(fitness_values)
+#     selection_probs = [fitness / total_fitness for fitness in fitness_values]
+    
+#     selected = np.random.choice(population, size=len(population) - elite_size, p=selection_probs, replace=True)
+#     return elite + selected.tolist()
+
+# def selection_roulette_wheel_ELITISM(population, distance_matrix):
+#     elite_size = max(1, int(0.05 * len(population)))  # 5% of the population
+#     elite = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))[:elite_size]
+    
+#     fitness_values = [1 / calculate_fitness(tour, distance_matrix) for tour in population]
+#     total_fitness = sum(fitness_values)
+#     selection_probs = [fitness / total_fitness for fitness in fitness_values]
+
+#     # Select indices based on the probabilities, then get the corresponding tours
+#     selected_indices = np.random.choice(len(population), size=len(population) - elite_size, p=selection_probs, replace=True)
+#     selected = [population[i] for i in selected_indices]
+#     return elite + selected
+
+# def selection_roulette_wheel(population, distance_matrix):
+#     fitness_values = [1 / calculate_fitness(tour, distance_matrix) for tour in population]
+#     total_fitness = sum(fitness_values)
+#     selection_probs = [fitness / total_fitness for fitness in fitness_values]
+
+#     # Select index based on the probabilities, then get the corresponding tour
+#     selected_index = np.random.choice(len(population), p=selection_probs)
+#     return population[selected_index]
+def selection_roulette_wheel(population, distance_matrix, num_to_select):
     fitness_values = [1 / calculate_fitness(tour, distance_matrix) for tour in population]
     total_fitness = sum(fitness_values)
     selection_probs = [fitness / total_fitness for fitness in fitness_values]
+
+    # Select multiple parents at once to reduce redundant calculations
+    selected_indices = np.random.choice(len(population), size=num_to_select, p=selection_probs, replace=True)
+    selected_tours = [population[i] for i in selected_indices]
     
-    selected = np.random.choice(population, size=len(population) - elite_size, p=selection_probs, replace=True)
-    return elite + selected.tolist()
+    return selected_tours
+
 
 #   CROSSOVER - - - - -
 
-def crossover_OX(parent1, parent2):   
+def crossover_OX(parent1, parent2): #   ordered crossover
     size = len(parent1)
     child = [-1] * size
 
@@ -238,24 +219,51 @@ def crossover_OX(parent1, parent2):
     return child
 
 
-def crossover_PMX(parent1, parent2): #   partially matched crossover
+# def crossover_PMX(parent1, parent2): #   partially matched crossover
+#     size = len(parent1)
+#     child = [-1] * size
+
+#     start, end = sorted(random.sample(range(size), 2))  # select random segment of parent1 genotype
+#     if start > end:
+#         start, end = end, start
+#     child[start:end] = parent1[start:end]
+
+#     mapping = {parent1[i]: parent2[i] for i in range(start, end)}
+
+#     for i in range(start, end):
+#         if parent2[i] not in child:
+#             pos = i
+#             while start <= pos < end:
+#                 pos = parent1.index(mapping[parent2[pos]])
+#             child[pos] = parent2[i]
+
+#     for i in range(size):
+#         if child[i] == -1:
+#             child[i] = parent2[i]
+
+#     return child
+
+
+def crossover_CX(parent1, parent2): #   cycle crossover
     size = len(parent1)
-    child = [-1] * size
+    child = [-1] * size  # Initialize child with -1 to indicate unassigned positions
+    visited = [False] * size  # Keep track of visited positions
 
-    start, end = sorted(random.sample(range(size), 2))  # select random segment of parent1 genotype
-    if start > end:
-        start, end = end, start
-    child[start:end] = parent1[start:end]
+    # Start with the first cycle
+    cycle_start = 0
+    while cycle_start < size:
+        if child[cycle_start] == -1:  # If the position is unassigned
+            # Start a new cycle
+            current = cycle_start
+            while not visited[current]:
+                child[current] = parent1[current]  # Assign from parent1
+                visited[current] = True
+                current = parent2.index(parent1[current])  # Move to the next position in parent2
+            
+        # Move to the next unvisited position
+        cycle_start += 1
 
-    mapping = {parent1[i]: parent2[i] for i in range(start, end)}
-
-    for i in range(start, end):
-        if parent2[i] not in child:
-            pos = i
-            while start <= pos < end:
-                pos = parent1.index(mapping[parent2[pos]])
-            child[pos] = parent2[i]
-
+    # Fill the remaining positions with genes from parent2
     for i in range(size):
         if child[i] == -1:
             child[i] = parent2[i]
@@ -302,23 +310,27 @@ def create_new_generation_BASE_CASE(population, distance_matrix, TOURNAMENT_SIZE
 
 
 def create_new_generation_SELECTION_ROULETTE(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE):
-    new_population = []
     population_size = len(population)
+    new_population = []
 
-    for _ in range(population_size):
-        #  PARENT SELECTION
-        parent1 = selection_roulette_wheel(population, distance_matrix)
-        parent2 = selection_roulette_wheel(population, distance_matrix)
-        #  CROSSOVER    
+    selected_parents = selection_roulette_wheel(population, distance_matrix, population_size * 2)
+    
+    # Iterate through pairs of parents to create children
+    for i in range(0, population_size * 2, 2):
+        parent1 = selected_parents[i]
+        parent2 = selected_parents[i + 1]
+        
+        # CROSSOVER
         child = crossover_OX(parent1, parent2)
-        #  MUTATION
+        # MUTATION
         child = mutation_swap(child, MUTATION_RATE)
         
         new_population.append(child)
+    
     return new_population
 
 
-def create_new_generation_CROSSOVER_PMX(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE):
+def create_new_generation_CROSSOVER_CX(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE):
     new_population = []
     population_size = len(population)
 
@@ -327,7 +339,7 @@ def create_new_generation_CROSSOVER_PMX(population, distance_matrix, TOURNAMENT_
         parent1 = selection_tournament(population, distance_matrix, TOURNAMENT_SIZE)
         parent2 = selection_tournament(population, distance_matrix, TOURNAMENT_SIZE)
         #  CROSSOVER    
-        child = crossover_PMX(parent1, parent2)
+        child = crossover_CX(parent1, parent2)
         #  MUTATION
         child = mutation_swap(child, MUTATION_RATE)
         
@@ -355,14 +367,20 @@ def create_new_generation_MUTATION_INVERSE(population, distance_matrix, TOURNAME
 #   MAIN FUNCTIONS - RUN THE ALGORITHM
 
 
-def run_BASE_CASE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS):
+def run_BASE_CASE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT, results_file_name):
     problem, distance_matrix, optimal_tour, optimal_distance, best_tour, best_distance = initialize_problem_details(file_name)
     number_of_cities = distance_matrix.shape[0]
     population = initialization_random(number_of_cities, POPULATION_SIZE)
+    generation_count = 0
 
     start_time = time.time()
 
     for generation in range(NUMBER_OF_GENERATIONS):
+        current_time = time.time()
+        if current_time - start_time >= TIME_LIMIT:
+            print(f"Time limit reached at Generation {generation}. Stopping the algorithm.")
+            break
+        
         population = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))
         current_best_distance = calculate_fitness(population[0], distance_matrix)
 
@@ -375,6 +393,7 @@ def run_BASE_CASE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NU
             break
 
         print(f"Generation {generation} - Best Distance: {best_distance}")
+        generation_count += 1
         population = create_new_generation_BASE_CASE(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE)
     
     end_time = time.time()
@@ -385,23 +404,29 @@ def run_BASE_CASE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NU
     print_results(
         number_of_cities, best_tour, best_distance, optimal_tour,
         optimal_distance, success_ratio, runtime_f, POPULATION_SIZE,
-        TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS
+        TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
     )
     save_tsp_results_to_csv(
-        "results.csv", file_name, number_of_cities, 
+        results_file_name, file_name, number_of_cities, 
         optimal_distance, best_distance, success_ratio, runtime_f,
-        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
     )
 
 
-def run_SELECTION_ROULETTE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS):
+def run_SELECTION_ROULETTE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT,results_file_name):
     problem, distance_matrix, optimal_tour, optimal_distance, best_tour, best_distance = initialize_problem_details(file_name)
     number_of_cities = distance_matrix.shape[0]
     population = initialization_random(number_of_cities, POPULATION_SIZE)
+    generation_count = 0
 
     start_time = time.time()
 
     for generation in range(NUMBER_OF_GENERATIONS):
+        current_time = time.time()
+        if current_time - start_time >= TIME_LIMIT:
+            print(f"Time limit reached at Generation {generation}. Stopping the algorithm.")
+            break
+    
         population = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))
         current_best_distance = calculate_fitness(population[0], distance_matrix)
 
@@ -414,6 +439,7 @@ def run_SELECTION_ROULETTE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION
             break
 
         print(f"Generation {generation} - Best Distance: {best_distance}")
+        generation_count += 1
         population = create_new_generation_SELECTION_ROULETTE(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE)
     
     end_time = time.time()
@@ -424,23 +450,29 @@ def run_SELECTION_ROULETTE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION
     print_results(
         number_of_cities, best_tour, best_distance, optimal_tour,
         optimal_distance, success_ratio, runtime_f, POPULATION_SIZE,
-        TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS
+        TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
     )
     save_tsp_results_to_csv(
-        "results.csv", file_name, number_of_cities, 
+        results_file_name, file_name, number_of_cities, 
         optimal_distance, best_distance, success_ratio, runtime_f,
-        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
     )
 
 
-def run_CROSSOVER_PMX(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS):
+def run_CROSSOVER_CX(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT, results_file_name):
     problem, distance_matrix, optimal_tour, optimal_distance, best_tour, best_distance = initialize_problem_details(file_name)
     number_of_cities = distance_matrix.shape[0]
     population = initialization_random(number_of_cities, POPULATION_SIZE)
+    generation_count = 0
 
     start_time = time.time()
 
     for generation in range(NUMBER_OF_GENERATIONS):
+        current_time = time.time()
+        if current_time - start_time >= TIME_LIMIT:
+            print(f"Time limit reached at Generation {generation}. Stopping the algorithm.")
+            break
+    
         population = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))
         current_best_distance = calculate_fitness(population[0], distance_matrix)
 
@@ -453,7 +485,8 @@ def run_CROSSOVER_PMX(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE
             break
 
         print(f"Generation {generation} - Best Distance: {best_distance}")
-        population = create_new_generation_CROSSOVER_PMX(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE)
+        generation_count += 1
+        population = create_new_generation_CROSSOVER_CX(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE)
     
     end_time = time.time()
     runtime = end_time - start_time
@@ -463,23 +496,29 @@ def run_CROSSOVER_PMX(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE
     print_results(
         number_of_cities, best_tour, best_distance, optimal_tour,
         optimal_distance, success_ratio, runtime_f, POPULATION_SIZE,
-        TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS
+        TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
     )
     save_tsp_results_to_csv(
-        "results.csv", file_name, number_of_cities, 
+        results_file_name, file_name, number_of_cities, 
         optimal_distance, best_distance, success_ratio, runtime_f,
-        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
     )
 
 
-def run_MUTATION_INVERSE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS):
+def run_MUTATION_INVERSE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT, results_file_name):
     problem, distance_matrix, optimal_tour, optimal_distance, best_tour, best_distance = initialize_problem_details(file_name)
     number_of_cities = distance_matrix.shape[0]
     population = initialization_random(number_of_cities, POPULATION_SIZE)
+    generation_count = 0
 
     start_time = time.time()
 
     for generation in range(NUMBER_OF_GENERATIONS):
+        current_time = time.time()
+        if current_time - start_time >= TIME_LIMIT:
+            print(f"Time limit reached at Generation {generation}. Stopping the algorithm.")
+            break
+    
         population = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))
         current_best_distance = calculate_fitness(population[0], distance_matrix)
 
@@ -492,6 +531,7 @@ def run_MUTATION_INVERSE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_R
             break
 
         print(f"Generation {generation} - Best Distance: {best_distance}")
+        generation_count += 1
         population = create_new_generation_MUTATION_INVERSE(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE)
     
     end_time = time.time()
@@ -502,23 +542,29 @@ def run_MUTATION_INVERSE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_R
     print_results(
         number_of_cities, best_tour, best_distance, optimal_tour,
         optimal_distance, success_ratio, runtime_f, POPULATION_SIZE,
-        TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS
+        TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
     )
     save_tsp_results_to_csv(
-        "results.csv", file_name, number_of_cities, 
+        results_file_name, file_name, number_of_cities, 
         optimal_distance, best_distance, success_ratio, runtime_f,
-        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
     )
 
 
-def run_INITIALIZATION_GREEDY(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS):
+def run_INITIALIZATION_GREEDY(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT, results_file_name):
     problem, distance_matrix, optimal_tour, optimal_distance, best_tour, best_distance = initialize_problem_details(file_name)
     number_of_cities = distance_matrix.shape[0]
     population = initialization_greedy(number_of_cities, distance_matrix, POPULATION_SIZE)
+    generation_count = 0
 
     start_time = time.time()
 
     for generation in range(NUMBER_OF_GENERATIONS):
+        current_time = time.time()
+        if current_time - start_time >= TIME_LIMIT:
+            print(f"Time limit reached at Generation {generation}. Stopping the algorithm.")
+            break
+
         population = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))
         current_best_distance = calculate_fitness(population[0], distance_matrix)
 
@@ -531,6 +577,7 @@ def run_INITIALIZATION_GREEDY(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTAT
             break
 
         print(f"Generation {generation} - Best Distance: {best_distance}")
+        generation_count += 1
         population = create_new_generation_BASE_CASE(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE)
     
     end_time = time.time()
@@ -541,20 +588,20 @@ def run_INITIALIZATION_GREEDY(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTAT
     print_results(
         number_of_cities, best_tour, best_distance, optimal_tour,
         optimal_distance, success_ratio, runtime_f, POPULATION_SIZE,
-        TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS
+        TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
     )
     save_tsp_results_to_csv(
-        "results.csv", file_name, number_of_cities, 
+        results_file_name, file_name, number_of_cities, 
         optimal_distance, best_distance, success_ratio, runtime_f,
-        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
     )
 
-
-def run_DET_ALG_1(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS):
+#   random - for the same amount of time
+def run_DET_ALG_1(file_name, TIME_LIMIT, results_file_name):   
     pass
 
-
-def run_DET_ALG_2(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS):
+#   greedy - for the same amount of time
+def run_DET_ALG_2(file_name, TIME_LIMIT, results_file_name): 
     pass
 
 
@@ -565,14 +612,13 @@ def run_DET_ALG_2(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NU
 def print_results(
         number_of_cities, best_tour, best_distance, optimal_tour,
         optimal_distance, success_ratio, runtime, POPULATION_SIZE,
-        TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS
+        TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT
         ):
     print("\n- - - - - - - Evolutionary Algorithm - - - - - - -\n")
     print(f'Parameters: \n'
         f'   * Population size: {POPULATION_SIZE}\n'
         f'   * Tournament size: {TOURNAMENT_SIZE}\n'
-        f'   * Mutation rate: {MUTATION_RATE}\n'
-        f'   * Number of generations: {NUMBER_OF_GENERATIONS}\n')
+        f'   * Mutation rate: {MUTATION_RATE}\n')
     print(f"Number of cities: {number_of_cities}")
     print(f"Best Tour: {best_tour}")
     print(f"Best Distance: {best_distance}")
@@ -580,12 +626,14 @@ def print_results(
     print(f"Optimal Distance: {optimal_distance}")
     print("Success ratio: {:.3f}%".format(success_ratio))
     print(f"Runtime: {runtime} seconds")
+    print(f"Number of generations: {NUMBER_OF_GENERATIONS}")
+    print(f"Time limit: {TIME_LIMIT} seconds")
 
 
 def save_tsp_results_to_csv(
         file_name, tsp_instance_name, number_of_cities, 
         optimal_distance, best_distance, success_ratio, runtime,
-        population_size, tournament_size, mutation_rate, number_of_generations
+        population_size, tournament_size, mutation_rate, number_of_generations, time_limit
         ):
     file_exists = os.path.isfile(file_name)
     with open(file_name, mode='a', newline='') as file:
@@ -594,12 +642,12 @@ def save_tsp_results_to_csv(
         if not file_exists:
             writer.writerow([
                 'TSP Instance', 'Number of Cities', 'Optimal Distance', 'My Distance', 'Success Rate (%)', 'Runtime (s)',
-                'PARAMETERS', 'POPULATION_SIZE', 'TOURNAMENT_SIZE', 'MUTATION_RATE', 'NUMBER_OF_GENERATIONS'
+                'PARAMETERS', 'POPULATION_SIZE', 'TOURNAMENT_SIZE', 'MUTATION_RATE', 'NUMBER_OF_GENERATIONS', 'TIME_LIMIT'
             ])
         writer.writerow([
             tsp_instance_name, number_of_cities, optimal_distance, best_distance, success_ratio, runtime,
             '',  # Empty "PARAMETERS" column
-            population_size, tournament_size, mutation_rate, number_of_generations
+            population_size, tournament_size, mutation_rate, number_of_generations, time_limit
         ])
 
 
@@ -624,54 +672,253 @@ def sort_csv_file(file_name):
 #   ----------------------------------------------------------------------------------------------------------------------------------------
 
 
-def main():
+def run_basic_experiment():
     names = os.listdir("data/datasets")
     names = [name.replace(".tsp", "") for name in names]
+    for name in names:
+        for bundle in basic_experiment_parameters:
+            POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
+            run_BASE_CASE(
+                name, 
+                POPULATION_SIZE,
+                TOURNAMENT_SIZE,
+                MUTATION_RATE,
+                NUMBER_OF_GENERATIONS,
+                TIME_LIMIT,
+                "results_basic.csv"
+            )
 
-    # #   BASE CASE - - - - -
-    # for name in names:
-    #     for bundle in parameter_bundles:
-    #         POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS = bundle.values()
-    #         run_BASE_CASE(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS)
 
-    # #   SELECTION - ROULETTE WHEEL - - - - -
-    # for name in names:
-    #     for bundle in parameter_bundles:
-    #         POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS = bundle.values()
-    #         run_SELECTION_ROULETTE(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS)
+def run_population_size_experiment():
+    name = 'gr202'
+    for bundle in population_size_experiment_parameters:
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
+        run_BASE_CASE(
+            name, 
+            POPULATION_SIZE,
+            TOURNAMENT_SIZE,
+            MUTATION_RATE,
+            NUMBER_OF_GENERATIONS,
+            TIME_LIMIT,
+            "results_population.csv"
+        )
 
-    # #   CROSSOVER - PMX - - - - -
-    # for name in names:
-    #     for bundle in parameter_bundles:
-    #         POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS = bundle.values()
-    #         run_CROSSOVER_PMX(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS)
+def run_number_of_generations_experiment():
+    name = 'gr202'
+    for bundle in basic_experiment_parameters:
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
+        run_BASE_CASE(
+            name, 
+            POPULATION_SIZE,
+            TOURNAMENT_SIZE,
+            MUTATION_RATE,
+            NUMBER_OF_GENERATIONS,
+            TIME_LIMIT,
+            "results_generations.csv"
+        )
 
-    # #   MUTATION - INVERSE - - - - -
-    # for name in names:
-    #     for bundle in parameter_bundles:
-    #         POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS = bundle.values()
-    #         run_MUTATION_INVERSE(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS)
+def run_mutation_rate_experiment():
+    name = 'gr202'
+    for bundle in mutation_rate_experiment_parameters:
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
+        run_BASE_CASE(
+            name, 
+            POPULATION_SIZE,
+            TOURNAMENT_SIZE,
+            MUTATION_RATE,
+            NUMBER_OF_GENERATIONS,
+            TIME_LIMIT,
+            "results_mutation_rate.csv"
+        )
 
-    #   INITIALIZATION - GREEDY - - - - -
-    # for name in names:
-    #     for bundle in parameter_bundles:
-    #         POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS = bundle.values()
-    #         run_INITIALIZATION_GREEDY(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS)
+def run_initialization_experiment():
+    name = 'gr202'
+    for bundle in basic_experiment_parameters:
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
+        run_BASE_CASE(
+            name, 
+            POPULATION_SIZE,
+            TOURNAMENT_SIZE,
+            MUTATION_RATE,
+            NUMBER_OF_GENERATIONS,
+            TIME_LIMIT,
+            "results_initializations.csv"
+        )
+        run_INITIALIZATION_GREEDY(
+            name, 
+            POPULATION_SIZE,
+            TOURNAMENT_SIZE,
+            MUTATION_RATE,
+            NUMBER_OF_GENERATIONS,
+            TIME_LIMIT,
+            "results_initializations.csv"
+        )
 
-    # #   DETERMINISTIC ALGORITHMS 1 - - - - -
-    # for name in names:
-    #     for bundle in parameter_bundles:
-    #         POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS = bundle.values()
-    #         run_DET_ALG_1(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS)
+def run_selection_experiment():
+    name = 'gr202'
+    for bundle in basic_experiment_parameters:
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
+        run_BASE_CASE(
+            name, 
+            POPULATION_SIZE,
+            TOURNAMENT_SIZE,
+            MUTATION_RATE,
+            NUMBER_OF_GENERATIONS,
+            TIME_LIMIT,
+            "results_selections.csv"
+        )
+        run_SELECTION_ROULETTE(
+            name, 
+            POPULATION_SIZE,
+            TOURNAMENT_SIZE,
+            MUTATION_RATE,
+            NUMBER_OF_GENERATIONS,
+            TIME_LIMIT,
+            "results_selections.csv"
+        )
 
-    # #   DETERMINISTIC ALGORITHMS 2 - - - - -
-    # for name in names:
-    #     for bundle in parameter_bundles:
-    #         POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS = bundle.values()
-    #         run_DET_ALG_1(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS)
+def run_crossover_experiment():
+    name = 'gr202'
+    for bundle in basic_experiment_parameters:
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
+        run_BASE_CASE(
+            name, 
+            POPULATION_SIZE,
+            TOURNAMENT_SIZE,
+            MUTATION_RATE,
+            NUMBER_OF_GENERATIONS,
+            TIME_LIMIT,
+            "results_crossovers.csv"
+        )
+        run_BASE_CASE(
+            name, 
+            POPULATION_SIZE,
+            TOURNAMENT_SIZE,
+            MUTATION_RATE,
+            NUMBER_OF_GENERATIONS,
+            TIME_LIMIT,
+            "results_crossovers.csv"
+        )
 
-    #   Sort the results.csv file
-    sort_csv_file("results.csv")
+def run_mutation_experiment():
+    name = 'gr202'
+    for bundle in basic_experiment_parameters:
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
+        run_BASE_CASE(
+            name, 
+            POPULATION_SIZE,
+            TOURNAMENT_SIZE,
+            MUTATION_RATE,
+            NUMBER_OF_GENERATIONS,
+            TIME_LIMIT,
+            "results_mutations.csv"
+        )
+        run_BASE_CASE(
+            name, 
+            POPULATION_SIZE,
+            TOURNAMENT_SIZE,
+            MUTATION_RATE,
+            NUMBER_OF_GENERATIONS,
+            TIME_LIMIT,
+            "results_mutations.csv"
+        )
+
+def run_non_ea_experiment():
+    name = 'gr202'
+    for bundle in basic_experiment_parameters:
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
+        run_BASE_CASE(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT,"results_non_ea.csv")
+        run_INITIALIZATION_GREEDY(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT,"results_non_ea.csv")
+        run_SELECTION_ROULETTE(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT,"results_non_ea.csv")
+        run_CROSSOVER_CX(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT,"results_non_ea.csv")
+        run_MUTATION_INVERSE(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT,"results_non_ea.csv")
+        run_DET_ALG_1(name, TIME_LIMIT)
+        run_DET_ALG_2(name, TIME_LIMIT)
+
+
+#   ----------------------------------------------------------------------------------------------------------------------------------------
+
+
+def main():
+    #   BASIC EXPERIMENT    
+    #   Running the EA over 6 different tsp instances, for the same amount of time (6 runs in total):
+    #       * random init
+    #       * tournament selection
+    #       * OX crossover
+    #       * swap mutation
+    run_basic_experiment()  #   6 runs in total
+
+    # EXPERIMENT FOR TESTING THE INFLUENCE OF POPULATION SIZE ON THE ALGORITHM
+    # Running the EA over one medium-sized tsp instance ('gr202'), over 5 different population sizes (6 runs in total):
+    #   * random init
+    #   * tournament selection
+    #   * OX crossover
+    #   * swap mutation
+    run_population_size_experiment()  #   6 runs in total
+
+    # EXPERIMENT FOR TESTING THE INFLUENCE OF NUMBER OF GENERATIONS ON THE ALGORITHM
+    # Running the EA over one medium-sized tsp instance ('gr202'), over 5 different number of generations (5 runs in total):
+    #   * random init
+    #   * tournament selection
+    #   * OX crossover
+    #   * swap mutation
+    run_number_of_generations_experiment()  #   6 runs in total
+
+    #   EXPERIMENT FOR TESTING THE INFLUENCE OF MUTATION RATE ON THE ALGORITHM
+    #   Running the EA over one medium-sized tsp instance ('gr202'), over 5 different mutation rates (5 runs in total):
+    #       * random init
+    #       * tournament selection
+    #       * OX crossover
+    #       * swap mutation
+    run_mutation_rate_experiment()  #   6 runs in total
+
+    #   EXPERIMENT FOR TESTING THE INFLUENCE OF 2 DIFFERENT INITIALIZATION STRATEGIES ON THE ALGORITHM (RANDOM AND GREEDY)
+    #   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different initialization strategies (2 runs in total):
+    #       * random init + greedy init
+    #       * tournament selection
+    #       * OX crossover
+    #       * swap mutation
+    run_initialization_experiment()  #   2 runs in total
+
+    #   EXPERIMENT FOR TESTING THE INFLUENCE OF 2 DIFFERENT SELECTION STRATEGIES ON THE ALGORITHM (TOURNAMENT AND ROULETTE WHEEL)
+    #   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different selection strategies (2 runs in total):
+    #       * random init
+    #       * tournament selection + roulette wheel selection
+    #       * OX crossover
+    #       * swap mutation
+    run_selection_experiment()  #   2 runs in total
+
+    #   EXPERIMENT FOR TESTING THE INFLUENCE OF 2 DIFFERENT CROSSOVER STRATEGIES ON THE ALGORITHM (OX AND CX)
+    #   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different crossover strategies (2 runs in total):
+    #       * random init
+    #       * tournament selection
+    #       * OX crossover + CX crossover
+    #       * swap mutation
+    run_crossover_experiment()  #   2 runs in total
+
+    #   EXPERIMENT FOR TESTING THE INFLUENCE OF 2 DIFFERENT MUTATION STRATEGIES ON THE ALGORITHM (SWAP AND INVERSE)
+    #   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different mutation strategies (2 runs in total):
+    #       * random init
+    #       * tournament selection
+    #       * OX crossover
+    #       * swap mutation + inverse mutation
+    run_mutation_experiment()  #   2 runs in total
+
+    #   EXPERIMENT FOR COMPARING THE PERFORMANCE OF THE EVOLUTIONARY ALGORITHM WITH 2 NON-EVOLUTIONARY ALGORITHMS
+    #   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different strategies involved (basic, greedy init, roulette, CX, inverse mutation) (5 runs in total):
+    # +
+    #   Running 2 non-evolutionary algorithms over the same tsp instances for the same amount of time (2 runs in total):
+    run_non_ea_experiment()  #   7 runs in total
+
+    sort_csv_file("results_basic.csv")
+    sort_csv_file("results_population.csv")
+    sort_csv_file("results_generations.csv")
+    sort_csv_file("results_mutation_rate.csv")
+    sort_csv_file("results_initializations.csv")
+    sort_csv_file("results_selections.csv")
+    sort_csv_file("results_crossovers.csv")
+    sort_csv_file("results_mutations.csv")
+    sort_csv_file("results_non_ea.csv")
 
 
 if __name__ == "__main__":
