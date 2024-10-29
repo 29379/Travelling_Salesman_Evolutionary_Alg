@@ -653,10 +653,10 @@ def main():
     #         run_MUTATION_INVERSE(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS)
 
     #   INITIALIZATION - GREEDY - - - - -
-    # for name in names:
-    #     for bundle in parameter_bundles:
-    #         POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS = bundle.values()
-    #         run_INITIALIZATION_GREEDY(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS)
+    for name in names:
+        for bundle in parameter_bundles:
+            POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS = bundle.values()
+            run_INITIALIZATION_GREEDY(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS)
 
     # #   DETERMINISTIC ALGORITHMS 1 - - - - -
     # for name in names:
