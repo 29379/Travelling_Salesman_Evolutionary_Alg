@@ -1,11 +1,11 @@
-
 import numpy as np
 import random
 import tsplib95
 import os
 import csv
 import time
-from parameter_bundles import basic_experiment_parameters, population_size_experiment_parameters, mutation_rate_experiment_parameters
+from parameter_bundles import best_experiment_parameters, basic_experiment_parameters, population_size_experiment_parameters, mutation_rate_experiment_parameters, number_of_generations_experiment_parameters
+import multiprocessing
 
 #   ----------------------------------------------------------------------------------------------------------------------------------------
 #   PROBLEM SETUP
@@ -77,13 +77,95 @@ def initialize_problem_details(file_name):
 #   DETERMINISTIC ALGORITHMS    
 
 
-def det_alg_1():
-    pass
+def run_RANDOM_ALG(file_name, output_file_name, TIME_LIMIT):
+    problem, distance_matrix, optimal_tour, optimal_distance, best_tour, best_distance = initialize_problem_details(file_name)
+    number_of_cities = distance_matrix.shape[0]
+    counter = 0
+    routine_time = 0
+    elapsed_time = 0
+
+    start_time = time.time()
+
+    while True:
+        current_time = time.time()
+        elapsed_time = current_time - start_time
+        if elapsed_time + routine_time >= 1.05 * TIME_LIMIT:
+            break
+
+        random_tour = random.sample(range(number_of_cities), number_of_cities)
+        random_distance = calculate_tour_distance(random_tour, distance_matrix)
+        if random_distance < best_distance:
+            best_distance = random_distance
+            best_tour = random_tour
+        if random_distance == optimal_distance:
+            print(f"Optimal distance for random search reached at iteration {counter}, runtime {elapsed_time}")
+            break
+        print(f"Random algorithm iteration {counter} and runtime {elapsed_time} ")
+        counter += 1
+        end_of_routine_time = time.time()
+        routine_time = end_of_routine_time - current_time
+
+    print_results(
+        number_of_cities, best_tour, best_distance, optimal_tour, optimal_distance, percentage_of_optimal(best_distance, optimal_distance),
+        f"{time.time() - start_time:.3f}", 'N/A', 'N/A', 'N/A', counter, TIME_LIMIT
+    )
+    save_tsp_results_to_csv(
+        output_file_name, file_name, number_of_cities, 
+        optimal_distance, best_distance, percentage_of_optimal(best_distance, optimal_distance), 
+        f"{time.time() - start_time:.3f}", 'N/A', 'N/A', 'N/A', counter, TIME_LIMIT
+    )
 
 
-def det_alg_2():
-    pass
 
+def run_GREEDY_ALG(file_name, output_file_name, TIME_LIMIT):
+    problem, distance_matrix, optimal_tour, optimal_distance, best_tour, best_distance = initialize_problem_details(file_name)
+    number_of_cities = distance_matrix.shape[0]
+    counter = 0
+    routine_time = 0
+    elapsed_time = 0
+
+    start_time = time.time()
+    while True:
+        current_time = time.time()
+        elapsed_time = current_time - start_time
+        if elapsed_time + routine_time >= 1.05 * TIME_LIMIT:
+            break
+
+        start_city = random.randint(0, number_of_cities - 1)
+        greedy_tour = [start_city]
+        unvisited = set(range(number_of_cities)) - {start_city}
+        
+        # Greedily build the tour
+        current_city = start_city
+        while unvisited:
+            next_city = min(unvisited, key=lambda city: distance_matrix[current_city][city])
+            greedy_tour.append(next_city)
+            unvisited.remove(next_city)
+            current_city = next_city
+        
+        current_distance = calculate_fitness(greedy_tour, distance_matrix)
+
+        if current_distance < best_distance:
+            best_distance = current_distance
+            best_tour = greedy_tour
+
+        if best_distance == optimal_distance:
+            print(f"Optimal distance for greedy search reached at iteration {counter}, runtime {elapsed_time}")
+            break
+        print(f"Greedy algorithm iteration: {counter} and runtime {elapsed_time}")
+        counter += 1
+        end_of_routine_time = time.time()
+        routine_time = end_of_routine_time - current_time
+
+    print_results(
+        number_of_cities, best_tour, best_distance, optimal_tour, optimal_distance, percentage_of_optimal(best_distance, optimal_distance),
+        f"{time.time() - start_time:.3f}", 'N/A', 'N/A', 'N/A', counter, TIME_LIMIT
+    )
+    save_tsp_results_to_csv(
+        output_file_name, file_name, number_of_cities,
+        optimal_distance, best_distance, percentage_of_optimal(best_distance, optimal_distance),
+        f"{time.time() - start_time:.3f}", 'N/A', 'N/A', 'N/A', counter, TIME_LIMIT
+    )
 
 #   ----------------------------------------------------------------------------------------------------------------------------------------
 
@@ -292,6 +374,23 @@ def mutation_inverse(tour, MUTATION_RATE):
 #   NEW GENERATION LOOPS - DIFFERENT MODES - - - - -
 
 
+def create_new_generation_BEST_CASE(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE):
+    new_population = []
+    population_size = len(population)
+
+    for _ in range(population_size):
+        #  PARENT SELECTION
+        parent1 = selection_tournament(population, distance_matrix, TOURNAMENT_SIZE)
+        parent2 = selection_tournament(population, distance_matrix, TOURNAMENT_SIZE)
+        #  CROSSOVER    
+        child = crossover_CX(parent1, parent2)
+        #  MUTATION
+        child = mutation_inverse(child, MUTATION_RATE)
+        
+        new_population.append(child)
+    return new_population
+
+
 def create_new_generation_BASE_CASE(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE):
     new_population = []
     population_size = len(population)
@@ -367,20 +466,24 @@ def create_new_generation_MUTATION_INVERSE(population, distance_matrix, TOURNAME
 #   MAIN FUNCTIONS - RUN THE ALGORITHM
 
 
-def run_BASE_CASE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT, results_file_name):
+def run_BEST_CASE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT, results_file_name):
     problem, distance_matrix, optimal_tour, optimal_distance, best_tour, best_distance = initialize_problem_details(file_name)
     number_of_cities = distance_matrix.shape[0]
-    population = initialization_random(number_of_cities, POPULATION_SIZE)
+    population = initialization_greedy(number_of_cities, distance_matrix,POPULATION_SIZE)
     generation_count = 0
+    creating_generation_runtime = 0
 
     start_time = time.time()
 
     for generation in range(NUMBER_OF_GENERATIONS):
         current_time = time.time()
-        if current_time - start_time >= TIME_LIMIT:
-            print(f"Time limit reached at Generation {generation}. Stopping the algorithm.")
+        elapsed_time = current_time - start_time
+
+        if elapsed_time + creating_generation_runtime >= 1.05 * TIME_LIMIT:
+            print(f"Time limit reached at Generation {generation}, at runtime {elapsed_time}. Stopping the algorithm.")
             break
-        
+        generation_start_time = time.time()
+
         population = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))
         current_best_distance = calculate_fitness(population[0], distance_matrix)
 
@@ -394,8 +497,64 @@ def run_BASE_CASE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NU
 
         print(f"Generation {generation} - Best Distance: {best_distance}")
         generation_count += 1
+        
         population = create_new_generation_BASE_CASE(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE)
-    
+        generation_end_time = time.time()
+        creating_generation_runtime = generation_end_time - generation_start_time
+
+    end_time = time.time()
+    runtime = end_time - start_time
+    runtime_f = f"{runtime:.3f}"
+
+    success_ratio = percentage_of_optimal(best_distance, optimal_distance)
+    print_results(
+        number_of_cities, best_tour, best_distance, optimal_tour,
+        optimal_distance, success_ratio, runtime_f, POPULATION_SIZE,
+        TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
+    )
+    save_tsp_results_to_csv(
+        results_file_name, file_name, number_of_cities, 
+        optimal_distance, best_distance, success_ratio, runtime_f,
+        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
+    )
+
+
+def run_BASE_CASE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT, results_file_name):
+    problem, distance_matrix, optimal_tour, optimal_distance, best_tour, best_distance = initialize_problem_details(file_name)
+    number_of_cities = distance_matrix.shape[0]
+    population = initialization_random(number_of_cities, POPULATION_SIZE)
+    generation_count = 0
+    creating_generation_runtime = 0
+
+    start_time = time.time()
+
+    for generation in range(NUMBER_OF_GENERATIONS):
+        current_time = time.time()
+        elapsed_time = current_time - start_time
+
+        if elapsed_time + creating_generation_runtime >= 1.05 * TIME_LIMIT:
+            print(f"Time limit reached at Generation {generation}, at runtime {elapsed_time}. Stopping the algorithm.")
+            break
+        generation_start_time = time.time()
+
+        population = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))
+        current_best_distance = calculate_fitness(population[0], distance_matrix)
+
+        if current_best_distance < best_distance:
+            best_distance = current_best_distance
+            best_tour = population[0]
+        
+        if best_distance == optimal_distance:
+            print(f"Optimal distance reached at Generation {generation}")
+            break
+
+        print(f"Generation {generation} - Best Distance: {best_distance}")
+        generation_count += 1
+        
+        population = create_new_generation_BASE_CASE(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE)
+        generation_end_time = time.time()
+        creating_generation_runtime = generation_end_time - generation_start_time
+
     end_time = time.time()
     runtime = end_time - start_time
     runtime_f = f"{runtime:.3f}"
@@ -418,15 +577,18 @@ def run_SELECTION_ROULETTE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION
     number_of_cities = distance_matrix.shape[0]
     population = initialization_random(number_of_cities, POPULATION_SIZE)
     generation_count = 0
+    creating_generation_runtime = 0
 
     start_time = time.time()
 
     for generation in range(NUMBER_OF_GENERATIONS):
         current_time = time.time()
-        if current_time - start_time >= TIME_LIMIT:
-            print(f"Time limit reached at Generation {generation}. Stopping the algorithm.")
+        elapsed_time = current_time - start_time
+        if elapsed_time + creating_generation_runtime >= 1.05 * TIME_LIMIT:
+            print(f"Time limit reached at Generation {generation}, at runtime {elapsed_time}. Stopping the algorithm.")
             break
-    
+        generation_start_time = time.time()
+
         population = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))
         current_best_distance = calculate_fitness(population[0], distance_matrix)
 
@@ -440,8 +602,11 @@ def run_SELECTION_ROULETTE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION
 
         print(f"Generation {generation} - Best Distance: {best_distance}")
         generation_count += 1
+
         population = create_new_generation_SELECTION_ROULETTE(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE)
-    
+        generation_end_time = time.time()
+        creating_generation_runtime = generation_end_time - generation_start_time
+
     end_time = time.time()
     runtime = end_time - start_time
     runtime_f = f"{runtime:.3f}"
@@ -464,14 +629,18 @@ def run_CROSSOVER_CX(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE,
     number_of_cities = distance_matrix.shape[0]
     population = initialization_random(number_of_cities, POPULATION_SIZE)
     generation_count = 0
+    creating_generation_runtime = 0
 
     start_time = time.time()
 
     for generation in range(NUMBER_OF_GENERATIONS):
         current_time = time.time()
-        if current_time - start_time >= TIME_LIMIT:
-            print(f"Time limit reached at Generation {generation}. Stopping the algorithm.")
+        elapsed_time = current_time - start_time
+
+        if elapsed_time + creating_generation_runtime >= 1.05 * TIME_LIMIT:
+            print(f"Time limit reached at Generation {generation}, at runtime {elapsed_time}. Stopping the algorithm.")
             break
+        generation_start_time = time.time()
     
         population = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))
         current_best_distance = calculate_fitness(population[0], distance_matrix)
@@ -486,8 +655,11 @@ def run_CROSSOVER_CX(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE,
 
         print(f"Generation {generation} - Best Distance: {best_distance}")
         generation_count += 1
+
         population = create_new_generation_CROSSOVER_CX(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE)
-    
+        generation_end_time = time.time()
+        creating_generation_runtime = generation_end_time - generation_start_time
+
     end_time = time.time()
     runtime = end_time - start_time
     runtime_f = f"{runtime:.3f}"
@@ -510,14 +682,18 @@ def run_MUTATION_INVERSE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_R
     number_of_cities = distance_matrix.shape[0]
     population = initialization_random(number_of_cities, POPULATION_SIZE)
     generation_count = 0
+    creating_generation_runtime = 0
 
     start_time = time.time()
 
     for generation in range(NUMBER_OF_GENERATIONS):
         current_time = time.time()
-        if current_time - start_time >= TIME_LIMIT:
-            print(f"Time limit reached at Generation {generation}. Stopping the algorithm.")
+        elapsed_time = current_time - start_time
+        
+        if elapsed_time + creating_generation_runtime >= 1.05 * TIME_LIMIT:
+            print(f"Time limit reached at Generation {generation}, at runtime {elapsed_time}. Stopping the algorithm.")
             break
+        generation_start_time = time.time()
     
         population = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))
         current_best_distance = calculate_fitness(population[0], distance_matrix)
@@ -532,8 +708,12 @@ def run_MUTATION_INVERSE(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_R
 
         print(f"Generation {generation} - Best Distance: {best_distance}")
         generation_count += 1
+
         population = create_new_generation_MUTATION_INVERSE(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE)
-    
+        generation_end_time = time.time()
+        creating_generation_runtime = generation_end_time - generation_start_time
+
+
     end_time = time.time()
     runtime = end_time - start_time
     runtime_f = f"{runtime:.3f}"
@@ -556,14 +736,18 @@ def run_INITIALIZATION_GREEDY(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTAT
     number_of_cities = distance_matrix.shape[0]
     population = initialization_greedy(number_of_cities, distance_matrix, POPULATION_SIZE)
     generation_count = 0
+    creating_generation_runtime = 0
 
     start_time = time.time()
 
     for generation in range(NUMBER_OF_GENERATIONS):
         current_time = time.time()
-        if current_time - start_time >= TIME_LIMIT:
-            print(f"Time limit reached at Generation {generation}. Stopping the algorithm.")
+        elapsed_time = current_time - start_time
+
+        if elapsed_time + creating_generation_runtime >= 1.05 * TIME_LIMIT:
+            print(f"Time limit reached at Generation {generation}, at runtime {elapsed_time}. Stopping the algorithm.")
             break
+        generation_start_time = time.time()
 
         population = sorted(population, key=lambda x: calculate_fitness(x, distance_matrix))
         current_best_distance = calculate_fitness(population[0], distance_matrix)
@@ -578,8 +762,11 @@ def run_INITIALIZATION_GREEDY(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTAT
 
         print(f"Generation {generation} - Best Distance: {best_distance}")
         generation_count += 1
+
         population = create_new_generation_BASE_CASE(population, distance_matrix, TOURNAMENT_SIZE, MUTATION_RATE)
-    
+        generation_end_time = time.time()
+        creating_generation_runtime = generation_end_time - generation_start_time
+
     end_time = time.time()
     runtime = end_time - start_time
     runtime_f = f"{runtime:.3f}"
@@ -596,14 +783,6 @@ def run_INITIALIZATION_GREEDY(file_name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTAT
         POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, generation_count, TIME_LIMIT
     )
 
-#   random - for the same amount of time
-def run_DET_ALG_1(file_name, TIME_LIMIT, results_file_name):   
-    pass
-
-#   greedy - for the same amount of time
-def run_DET_ALG_2(file_name, TIME_LIMIT, results_file_name): 
-    pass
-
 
 #   ----------------------------------------------------------------------------------------------------------------------------------------
 #   PRINTING AND SAVING RESULTS
@@ -614,20 +793,23 @@ def print_results(
         optimal_distance, success_ratio, runtime, POPULATION_SIZE,
         TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT
         ):
-    print("\n- - - - - - - Evolutionary Algorithm - - - - - - -\n")
-    print(f'Parameters: \n'
-        f'   * Population size: {POPULATION_SIZE}\n'
-        f'   * Tournament size: {TOURNAMENT_SIZE}\n'
-        f'   * Mutation rate: {MUTATION_RATE}\n')
-    print(f"Number of cities: {number_of_cities}")
-    print(f"Best Tour: {best_tour}")
-    print(f"Best Distance: {best_distance}")
-    print(f"Optimal Tour: {optimal_tour}")
-    print(f"Optimal Distance: {optimal_distance}")
-    print("Success ratio: {:.3f}%".format(success_ratio))
-    print(f"Runtime: {runtime} seconds")
-    print(f"Number of generations: {NUMBER_OF_GENERATIONS}")
-    print(f"Time limit: {TIME_LIMIT} seconds")
+    print(
+        f"\n- - - - - - - Evolutionary Algorithm - - - - - - -\n"
+        f"Parameters:\n"
+        f"   * Population size: {POPULATION_SIZE}\n"
+        f"   * Tournament size: {TOURNAMENT_SIZE}\n"
+        f"   * Mutation rate: {MUTATION_RATE}\n\n"
+        f"Number of cities: {number_of_cities}\n"
+        f"Best Tour: {best_tour}\n"
+        f"Best Distance: {best_distance}\n"
+        f"Optimal Tour: {optimal_tour}\n"
+        f"Optimal Distance: {optimal_distance}\n"
+        f"Success ratio: {success_ratio:.3f}%\n"
+        f"Runtime: {runtime} seconds\n"
+        f"Number of generations: {NUMBER_OF_GENERATIONS}\n"
+        f"Time limit: {TIME_LIMIT} seconds\n"
+    )
+
 
 
 def save_tsp_results_to_csv(
@@ -672,6 +854,30 @@ def sort_csv_file(file_name):
 #   ----------------------------------------------------------------------------------------------------------------------------------------
 
 
+def run_best_experiment():
+    names = os.listdir("data/datasets")
+    names = [name.replace(".tsp", "") for name in names]
+    for name in names:
+        for bundle in best_experiment_parameters:
+            POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
+            run_BEST_CASE(
+                name, 
+                POPULATION_SIZE,
+                TOURNAMENT_SIZE,
+                MUTATION_RATE,
+                NUMBER_OF_GENERATIONS,
+                TIME_LIMIT,
+                "results_best.csv"
+            )    
+    print("\n- - - - Best-case experiment finished! - - - -\n")
+
+
+#   BASIC EXPERIMENT    
+#   Running the EA over 6 different tsp instances, for the same amount of time (6 runs in total):
+#       * random init
+#       * tournament selection
+#       * OX crossover
+#       * swap mutation
 def run_basic_experiment():
     names = os.listdir("data/datasets")
     names = [name.replace(".tsp", "") for name in names]
@@ -687,8 +893,15 @@ def run_basic_experiment():
                 TIME_LIMIT,
                 "results_basic.csv"
             )
+    print("\n- - - - Basic experiment finished! - - - -\n")
 
 
+# EXPERIMENT FOR TESTING THE INFLUENCE OF POPULATION SIZE ON THE ALGORITHM
+# Running the EA over one medium-sized tsp instance ('gr202'), over 5 different population sizes (6 runs in total):
+#   * random init
+#   * tournament selection
+#   * OX crossover
+#   * swap mutation
 def run_population_size_experiment():
     name = 'gr202'
     for bundle in population_size_experiment_parameters:
@@ -700,12 +913,19 @@ def run_population_size_experiment():
             MUTATION_RATE,
             NUMBER_OF_GENERATIONS,
             TIME_LIMIT,
-            "results_population.csv"
+            "results_population_size.csv"
         )
+    print("\n- - - - Population size experiment finished! - - - -\n")
 
+# EXPERIMENT FOR TESTING THE INFLUENCE OF NUMBER OF GENERATIONS ON THE ALGORITHM
+    # Running the EA over one medium-sized tsp instance ('gr202'), over 5 different number of generations (5 runs in total):
+    #   * random init
+    #   * tournament selection
+    #   * OX crossover
+    #   * swap mutation
 def run_number_of_generations_experiment():
     name = 'gr202'
-    for bundle in basic_experiment_parameters:
+    for bundle in number_of_generations_experiment_parameters:
         POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
         run_BASE_CASE(
             name, 
@@ -714,9 +934,17 @@ def run_number_of_generations_experiment():
             MUTATION_RATE,
             NUMBER_OF_GENERATIONS,
             TIME_LIMIT,
-            "results_generations.csv"
+            "results_num_generations.csv"
         )
+    print("\n- - - - Number of generations experiment finished! - - - -\n")
 
+
+#   EXPERIMENT FOR TESTING THE INFLUENCE OF MUTATION RATE ON THE ALGORITHM
+#   Running the EA over one medium-sized tsp instance ('gr202'), over 5 different mutation rates (5 runs in total):
+#       * random init
+#       * tournament selection
+#       * OX crossover
+#       * swap mutation
 def run_mutation_rate_experiment():
     name = 'gr202'
     for bundle in mutation_rate_experiment_parameters:
@@ -730,7 +958,14 @@ def run_mutation_rate_experiment():
             TIME_LIMIT,
             "results_mutation_rate.csv"
         )
+    print("\n- - - - Mutation rate experiment finished! - - - -\n")
 
+#   EXPERIMENT FOR TESTING THE INFLUENCE OF 2 DIFFERENT INITIALIZATION STRATEGIES ON THE ALGORITHM (RANDOM AND GREEDY)
+#   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different initialization strategies (2 runs in total):
+#       * random init + greedy init
+#       * tournament selection
+#       * OX crossover
+#       * swap mutation
 def run_initialization_experiment():
     name = 'gr202'
     for bundle in basic_experiment_parameters:
@@ -753,7 +988,15 @@ def run_initialization_experiment():
             TIME_LIMIT,
             "results_initializations.csv"
         )
+    print("\n- - - - Initialization experiment finished! - - - -\n")
 
+
+#   EXPERIMENT FOR TESTING THE INFLUENCE OF 2 DIFFERENT SELECTION STRATEGIES ON THE ALGORITHM (TOURNAMENT AND ROULETTE WHEEL)
+#   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different selection strategies (2 runs in total):
+#       * random init
+#       * tournament selection + roulette wheel selection
+#       * OX crossover
+#       * swap mutation
 def run_selection_experiment():
     name = 'gr202'
     for bundle in basic_experiment_parameters:
@@ -776,7 +1019,15 @@ def run_selection_experiment():
             TIME_LIMIT,
             "results_selections.csv"
         )
+    print("\n- - - - Selection experiment finished! - - - -\n")
 
+
+#   EXPERIMENT FOR TESTING THE INFLUENCE OF 2 DIFFERENT CROSSOVER STRATEGIES ON THE ALGORITHM (OX AND CX)
+#   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different crossover strategies (2 runs in total):
+#       * random init
+#       * tournament selection
+#       * OX crossover + CX crossover
+#       * swap mutation
 def run_crossover_experiment():
     name = 'gr202'
     for bundle in basic_experiment_parameters:
@@ -790,7 +1041,7 @@ def run_crossover_experiment():
             TIME_LIMIT,
             "results_crossovers.csv"
         )
-        run_BASE_CASE(
+        run_CROSSOVER_CX(
             name, 
             POPULATION_SIZE,
             TOURNAMENT_SIZE,
@@ -799,7 +1050,15 @@ def run_crossover_experiment():
             TIME_LIMIT,
             "results_crossovers.csv"
         )
+    print("\n- - - - Crossover experiment finished! - - - -\n")
 
+
+#   EXPERIMENT FOR TESTING THE INFLUENCE OF 2 DIFFERENT MUTATION STRATEGIES ON THE ALGORITHM (SWAP AND INVERSE)
+#   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different mutation strategies (2 runs in total):
+#       * random init
+#       * tournament selection
+#       * OX crossover
+#       * swap mutation + inverse mutation
 def run_mutation_experiment():
     name = 'gr202'
     for bundle in basic_experiment_parameters:
@@ -813,7 +1072,7 @@ def run_mutation_experiment():
             TIME_LIMIT,
             "results_mutations.csv"
         )
-        run_BASE_CASE(
+        run_MUTATION_INVERSE(
             name, 
             POPULATION_SIZE,
             TOURNAMENT_SIZE,
@@ -822,103 +1081,74 @@ def run_mutation_experiment():
             TIME_LIMIT,
             "results_mutations.csv"
         )
+    print("\n- - - - Mutation experiment finished! - - - -\n")
 
+#   EXPERIMENT FOR COMPARING THE PERFORMANCE OF THE EVOLUTIONARY ALGORITHM WITH 2 NON-EVOLUTIONARY ALGORITHMS
+#   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different strategies involved (basic, greedy init, roulette, CX, inverse mutation) (5 runs in total):
+# +
+#   Running 2 non-evolutionary algorithms over the same tsp instances for the same amount of time (2 runs in total):
 def run_non_ea_experiment():
-    name = 'gr202'
-    for bundle in basic_experiment_parameters:
-        POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
-        run_BASE_CASE(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT,"results_non_ea.csv")
-        run_INITIALIZATION_GREEDY(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT,"results_non_ea.csv")
-        run_SELECTION_ROULETTE(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT,"results_non_ea.csv")
-        run_CROSSOVER_CX(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT,"results_non_ea.csv")
-        run_MUTATION_INVERSE(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT,"results_non_ea.csv")
-        run_DET_ALG_1(name, TIME_LIMIT)
-        run_DET_ALG_2(name, TIME_LIMIT)
+    names = ['berlin52', 'gr202', 'pa561']
+    for name in names:
+        for bundle in basic_experiment_parameters:
+            POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT = bundle.values()
+            run_BASE_CASE(name, POPULATION_SIZE, TOURNAMENT_SIZE, MUTATION_RATE, NUMBER_OF_GENERATIONS, TIME_LIMIT,"results_non_ea.csv")
+            run_RANDOM_ALG(name, "results_non_ea.csv", TIME_LIMIT)
+            run_GREEDY_ALG(name, "results_non_ea.csv", TIME_LIMIT)
+    print("\n- - - - Non-EA experiment finished! - - - -\n")
 
 
 #   ----------------------------------------------------------------------------------------------------------------------------------------
 
 
 def main():
-    #   BASIC EXPERIMENT    
-    #   Running the EA over 6 different tsp instances, for the same amount of time (6 runs in total):
-    #       * random init
-    #       * tournament selection
-    #       * OX crossover
-    #       * swap mutation
-    run_basic_experiment()  #   6 runs in total
+    start_time = time.time()
 
-    # EXPERIMENT FOR TESTING THE INFLUENCE OF POPULATION SIZE ON THE ALGORITHM
-    # Running the EA over one medium-sized tsp instance ('gr202'), over 5 different population sizes (6 runs in total):
-    #   * random init
-    #   * tournament selection
-    #   * OX crossover
-    #   * swap mutation
-    run_population_size_experiment()  #   6 runs in total
+    experiments = [
+        run_basic_experiment,
+        run_population_size_experiment,
+        run_mutation_rate_experiment,
+        run_number_of_generations_experiment,
+        run_initialization_experiment,
+        run_selection_experiment,
+        run_crossover_experiment,
+        run_mutation_experiment,
+        run_non_ea_experiment,
+        run_best_experiment
+    ]
+    processes = [multiprocessing.Process(target=experiment) for experiment in experiments]
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join()
 
-    # EXPERIMENT FOR TESTING THE INFLUENCE OF NUMBER OF GENERATIONS ON THE ALGORITHM
-    # Running the EA over one medium-sized tsp instance ('gr202'), over 5 different number of generations (5 runs in total):
-    #   * random init
-    #   * tournament selection
-    #   * OX crossover
-    #   * swap mutation
-    run_number_of_generations_experiment()  #   6 runs in total
+    end_time = time.time()
+    total_time = end_time - start_time
+    seconds = int(total_time % 60)
+    minutes = int(total_time // 60)
+    print("All experiments have completed.")
+    print(f"Total runtime: {minutes} minutes {seconds} seconds")
+    # run_basic_experiment()  #   7 runs in total
+    # run_population_size_experiment()  #   7 runs in total
+    # run_mutation_rate_experiment()  #   7 runs in total
+    # run_number_of_generations_experiment()  #   7 runs in total
+    # run_initialization_experiment()  #   2 runs in total
+    # run_selection_experiment()  #   2 runs in total
+    # run_crossover_experiment()  #   2 runs in total
+    # run_mutation_experiment()  #   2 runs in total
+    # run_non_ea_experiment()  #   9 runs in total
+    # run_best_experiment()  #   21 runs in total
 
-    #   EXPERIMENT FOR TESTING THE INFLUENCE OF MUTATION RATE ON THE ALGORITHM
-    #   Running the EA over one medium-sized tsp instance ('gr202'), over 5 different mutation rates (5 runs in total):
-    #       * random init
-    #       * tournament selection
-    #       * OX crossover
-    #       * swap mutation
-    run_mutation_rate_experiment()  #   6 runs in total
-
-    #   EXPERIMENT FOR TESTING THE INFLUENCE OF 2 DIFFERENT INITIALIZATION STRATEGIES ON THE ALGORITHM (RANDOM AND GREEDY)
-    #   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different initialization strategies (2 runs in total):
-    #       * random init + greedy init
-    #       * tournament selection
-    #       * OX crossover
-    #       * swap mutation
-    run_initialization_experiment()  #   2 runs in total
-
-    #   EXPERIMENT FOR TESTING THE INFLUENCE OF 2 DIFFERENT SELECTION STRATEGIES ON THE ALGORITHM (TOURNAMENT AND ROULETTE WHEEL)
-    #   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different selection strategies (2 runs in total):
-    #       * random init
-    #       * tournament selection + roulette wheel selection
-    #       * OX crossover
-    #       * swap mutation
-    run_selection_experiment()  #   2 runs in total
-
-    #   EXPERIMENT FOR TESTING THE INFLUENCE OF 2 DIFFERENT CROSSOVER STRATEGIES ON THE ALGORITHM (OX AND CX)
-    #   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different crossover strategies (2 runs in total):
-    #       * random init
-    #       * tournament selection
-    #       * OX crossover + CX crossover
-    #       * swap mutation
-    run_crossover_experiment()  #   2 runs in total
-
-    #   EXPERIMENT FOR TESTING THE INFLUENCE OF 2 DIFFERENT MUTATION STRATEGIES ON THE ALGORITHM (SWAP AND INVERSE)
-    #   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different mutation strategies (2 runs in total):
-    #       * random init
-    #       * tournament selection
-    #       * OX crossover
-    #       * swap mutation + inverse mutation
-    run_mutation_experiment()  #   2 runs in total
-
-    #   EXPERIMENT FOR COMPARING THE PERFORMANCE OF THE EVOLUTIONARY ALGORITHM WITH 2 NON-EVOLUTIONARY ALGORITHMS
-    #   Running the EA over one medium-sized tsp instance ('gr202') for the same amount of time, with different strategies involved (basic, greedy init, roulette, CX, inverse mutation) (5 runs in total):
-    # +
-    #   Running 2 non-evolutionary algorithms over the same tsp instances for the same amount of time (2 runs in total):
-    run_non_ea_experiment()  #   7 runs in total
-
-    sort_csv_file("results_basic.csv")
-    sort_csv_file("results_population.csv")
-    sort_csv_file("results_generations.csv")
-    sort_csv_file("results_mutation_rate.csv")
-    sort_csv_file("results_initializations.csv")
-    sort_csv_file("results_selections.csv")
-    sort_csv_file("results_crossovers.csv")
-    sort_csv_file("results_mutations.csv")
-    sort_csv_file("results_non_ea.csv")
+    # sort_csv_file("results_basic.csv")
+    # sort_csv_file("results_population.csv")
+    # sort_csv_file("results_generations.csv")
+    # sort_csv_file("results_mutation_rate.csv")
+    # sort_csv_file("results_initializations.csv")
+    # sort_csv_file("results_selections.csv")
+    # sort_csv_file("results_crossovers.csv")
+    # sort_csv_file("results_mutations.csv")
+    # sort_csv_file("results_non_ea.csv")
+    sort_csv_file("results_best.csv")
 
 
 if __name__ == "__main__":
