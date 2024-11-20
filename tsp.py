@@ -1128,26 +1128,17 @@ def main():
     minutes = int(total_time // 60)
     print("All experiments have completed.")
     print(f"Total runtime: {minutes} minutes {seconds} seconds")
-    # run_basic_experiment()  #   7 runs in total
-    # run_population_size_experiment()  #   7 runs in total
-    # run_mutation_rate_experiment()  #   7 runs in total
-    # run_number_of_generations_experiment()  #   7 runs in total
-    # run_initialization_experiment()  #   2 runs in total
-    # run_selection_experiment()  #   2 runs in total
-    # run_crossover_experiment()  #   2 runs in total
-    # run_mutation_experiment()  #   2 runs in total
-    # run_non_ea_experiment()  #   9 runs in total
-    # run_best_experiment()  #   21 runs in total
 
-    # sort_csv_file("results_basic.csv")
-    # sort_csv_file("results_population.csv")
-    # sort_csv_file("results_generations.csv")
-    # sort_csv_file("results_mutation_rate.csv")
-    # sort_csv_file("results_initializations.csv")
-    # sort_csv_file("results_selections.csv")
-    # sort_csv_file("results_crossovers.csv")
-    # sort_csv_file("results_mutations.csv")
-    # sort_csv_file("results_non_ea.csv")
+
+    sort_csv_file("results_basic.csv")
+    sort_csv_file("results_population.csv")
+    sort_csv_file("results_generations.csv")
+    sort_csv_file("results_mutation_rate.csv")
+    sort_csv_file("results_initializations.csv")
+    sort_csv_file("results_selections.csv")
+    sort_csv_file("results_crossovers.csv")
+    sort_csv_file("results_mutations.csv")
+    sort_csv_file("results_non_ea.csv")
     sort_csv_file("results_best.csv")
 
 
